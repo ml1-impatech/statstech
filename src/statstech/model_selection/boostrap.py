@@ -2,37 +2,27 @@ import numpy as np
 
 def bootstrap(data, statistic, n_bootstrap=1000,
               random_state=None):
+    # Verifica se os dados são uma tupla, caso contrário, converte para tupla
+    if not isinstance(data, tuple):
+        data = (data,)
+    arrays = tuple(np.asarray(d) for d in data)
 
-    if isinstance(data, tuple):
-        arrays = []
-        for d in data:
-            arrays.append(np.asarray(d))
-        for a in arrays:
-            if len(a) != len(arrays[0]):
-                raise ValueError("Todas as entradas do array devem ter o mesmo comprimento.")
-        data = tuple(arrays)
-        n = len(data[0])
-    else: 
-        data =np.asarray(data)
-        n = len(data)
-        
+    if not arrays:
+        raise ValueError("Nenhum dado fornecido para bootstrap.")
+    n = len(arrays[0])
+    if n==0:
+        raise ValueError("O tamanho do dado deve ser maior que 0.")
+    if any(len(a) != n for a in arrays):
+        raise ValueError("Todos os arrays devem ter o mesmo tamanho.")    
     if n_bootstrap < 2:
         raise ValueError("n_bootstrap deve ser pelo menos 2.")
 
     rng = np.random.default_rng(random_state)
     idx = rng.integers(0, n, size=(n_bootstrap, n))
 
-    estimates = []
-
-    for i in range(n_bootstrap):
-            if isinstance(data, tuple):
-                sample = tuple(d[idx[i]] for d in data)
-                estimates.append(statistic(*sample)) # *sample desempacota a tupla para passar como argumentos separados para a função estatística
-            else:
-                sample = data[idx[i]]
-                estimates.append(statistic(sample))
-
-    estimates = np.array(estimates)
-    std_error = np.std(estimates, axis = 0, ddof = 1) # ddof: delta degrees of freedom, 1 para amostra
+    estimates = np.array([statistic(*(a[rows] for a in arrays)) for rows in idx])
+    std_error = np.std(estimates, axis = 0, ddof = 1)
 
     return estimates, std_error
+
+# Dúvida: retornar intervalo de confiança também? 
