@@ -2,6 +2,30 @@ import numpy as np
 
 def bootstrap(data, statistic, n_bootstrap=1000,
               random_state=None):
+    """Realiza bootstrap para estimar a variabilidade de uma estatística.
+
+    Parâmetros
+    ----------
+    data : array-like ou tupla de array-like
+        Dados de entrada. Pode ser um array ou uma tupla de arrays.
+        
+    statistic : callable
+        Função que calcula a estatística de interesse.
+    
+    n_bootstrap : int, default=1000
+        Número de reamostragens bootstrap a serem realizados.
+
+    random_state : int ou None, default = None
+        Seed para o gerador de números aleatórios.
+
+    Retorna
+    -------
+    estimates : ndarray
+        Estimativas da estatística calculadas a partir das amostras bootstrap.
+
+    std_error : float ou ndarray
+        Desvio padrão das estimativas. 
+    """
     # Verifica se os dados são uma tupla, caso contrário, converte para tupla
     if not isinstance(data, tuple):
         data = (data,)
