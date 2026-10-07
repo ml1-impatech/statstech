@@ -68,7 +68,10 @@ class ClassifierMixin:
 
 
 class TransformerMixin: 
-    pass
+
+    def fit_transform(self, X, y=None):
+        """ Ajusta e devolve os dados transformados. """
+        return self.fit(X,y).transform(X)
 
 
 def clone(estimator):
