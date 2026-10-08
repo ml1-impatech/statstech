@@ -45,3 +45,17 @@ def test_activations_keep_shape():
     z = np.array([[-1.0, 2.0], [3.0, -4.0]])
     for func in [relu, relu_derivative, identity, identity_derivative]:
         assert func(z).shape == z.shape
+
+
+def test_init_weights_shapes():
+    model = MLPRegressor(hidden_layer_sizes=(32, 16))
+    model._init_weights(5, np.random.default_rng(0))
+    assert [w.shape for w in model.weights_] == [(5, 32), (32, 16), (16, 1)]
+    assert [b.shape for b in model.biases_] == [(32,), (16,), (1,)]
+
+
+def test_init_weights_biases():
+    model = MLPRegressor(hidden_layer_sizes=(32, 16))
+    model._init_weights(5, np.random.default_rng(0))
+    for b in model.biases_:
+        np.testing.assert_allclose(b, 0)

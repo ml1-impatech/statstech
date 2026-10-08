@@ -5,12 +5,12 @@ from statstech.base import BaseEstimator, RegressorMixin
 
 def relu(preactivation: np.ndarray) -> np.ndarray:
     """Função de ativação ReLU.
-    
+
     Parameters
     ----------
     preactivation : np.ndarray
         Array com os valores de pré-ativação.
-    
+
     Returns
     -------
     activation : np.ndarray
@@ -22,12 +22,12 @@ def relu(preactivation: np.ndarray) -> np.ndarray:
 
 def relu_derivative(preactivation: np.ndarray) -> np.ndarray:
     """Calcula a derivada da função de ativação ReLU.
-    
+
     Parameters
     ----------
     preactivation : np.ndarray
         Array com os valores de pré-ativação.
-    
+
     Returns
     -------
     np.ndarray
@@ -38,28 +38,28 @@ def relu_derivative(preactivation: np.ndarray) -> np.ndarray:
 
 def identity(preactivation: np.ndarray) -> np.ndarray:
     """Calcula a função de ativação identidade.
-    
+
     Parameters
     ----------
     preactivation : np.ndarray
         Array com os valores de pré-ativação.
-    
+
     Returns
     -------
     np.ndarray
-        Cópia do array de entrada mantendo os valores originais. 
+        Cópia do array de entrada mantendo os valores originais.
     """
     return np.copy(preactivation)
 
 
 def identity_derivative(preactivation: np.ndarray) -> np.ndarray:
     """Calcula a derivada da função de ativação identidade.
-    
+
     Parameters
     ----------
     preactivation : np.ndarray
         Array com os valores de pré-ativação.
-    
+
     Returns
     -------
     np.ndarray
@@ -76,17 +76,17 @@ ACTIVATIONS = {
 
 class MLPRegressor(BaseEstimator, RegressorMixin):
     """Multi-Layer Perceptron (MLP) Regressor.
-    
+
     Implementação de uma rede neural para regressão
-    
+
     Parameters
     ----------
-    hidden_layer_sizes : tuple of itn, default=(32,)
+    hidden_layer_sizes : tuple of int, default=(32,)
         O número de neurônios em cada camada oculta.
     activation : {'relu', 'identity'}, default='relu'
         Função de ativação utilizada nas camadas ocultas.
     learning_rate : float, default=1e-3
-        Taxa de aprendizado utilizada para a atualização dos pesos via 
+        Taxa de aprendizado utilizada para a atualização dos pesos via
         gradiente descendente.
     max_iter : int, default=200
         Número máximo de épocas de treinamento.
@@ -94,11 +94,10 @@ class MLPRegressor(BaseEstimator, RegressorMixin):
         Tamanho dos mini-batches para o treinamento.
     random_state : int, RandomState instance or None, default=None
         Semente para o gerador de números aleatórios.
-    
+
     Attributes
     ----------
-    (continuar)
-        
+    # TODO depois de implementar
     """
 
     def __init__(
@@ -116,6 +115,19 @@ class MLPRegressor(BaseEstimator, RegressorMixin):
         self.max_iter = max_iter
         self.batch_size = batch_size
         self.random_state = random_state
+
+    def _init_weights(self, n_features, rng):
+        layer_sizes = [n_features] + list(self.hidden_layer_sizes) + [1]
+        weights = []
+        biases = []
+
+        for n_in, n_out in zip(layer_sizes[:-1], layer_sizes[1:]):
+            scale = np.sqrt(2 / n_in)
+            weights.append(rng.normal(0, scale, size=(n_in, n_out)))
+            biases.append(np.zeros(n_out))
+
+        self.weights_ = weights
+        self.biases_ = biases
 
     def fit(self, X, y):
         raise NotImplementedError
