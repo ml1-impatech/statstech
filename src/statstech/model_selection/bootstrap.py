@@ -4,7 +4,7 @@ def bootstrap(data, statistic, n_bootstrap=1000,
               random_state=None):
     """Realiza bootstrap para estimar a variabilidade de uma estatística.
 
-    Parâmetros
+    Parameters
     ----------
     data : array-like ou tupla de array-like
         Dados de entrada. Pode ser um array ou uma tupla de arrays.
@@ -18,7 +18,7 @@ def bootstrap(data, statistic, n_bootstrap=1000,
     random_state : int ou None, default = None
         Seed para o gerador de números aleatórios.
 
-    Retorna
+    Returns
     -------
     estimates : ndarray
         Estimativas da estatística calculadas a partir das amostras bootstrap.
