@@ -54,7 +54,7 @@ def train_test_split(X, y, test_size=0.25, shuffle=True,
         Se stratify for fornecido.
     
     """
-    
+
     if stratify is not None:
         raise NotImplementedError("Estratificação ainda não implementada.")
     
@@ -84,9 +84,11 @@ def train_test_split(X, y, test_size=0.25, shuffle=True,
         raise ValueError("train_size precisa ser pelo menos 1.")
 
     idx = rng.permutation(n) if shuffle else np.arange(n)
-    train_idx, test_idx = idx[:n_test], idx[n_test:]
+    train_idx, test_idx = idx[:n_train], idx[n_train:]
 
     return X[train_idx], X[test_idx], y[train_idx], y[test_idx]
+
+# Dúvida: y opcional para não supervisionado?
 
 class KFold: 
     def __init__(self, n_splits=5, shuffle=False, random_state=None):
