@@ -25,8 +25,16 @@ def bootstrap(data, statistic, n_bootstrap=1000,
 
     std_error : float ou ndarray
         Desvio padrão das estimativas. 
+
+    Raises
+    ------
+    ValueError
+        Se nenhum dado for fornecido.
+        Se os arrays não tiverem o mesmo tamanho.
+        Se o tamanho do dado for 0.
+        Se n_bootstrap for menor que 2.
     """
-    # Verifica se os dados são uma tupla, caso contrário, converte para tupla
+    
     if not isinstance(data, tuple):
         data = (data,)
     arrays = tuple(np.asarray(d) for d in data)
