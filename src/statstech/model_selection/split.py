@@ -143,7 +143,7 @@ class KFold:
             ------
             ValueError
                 Se a quantidade de folds for menor que 2.
-                Se a quantidade de folds foi maior que a quantidade de dados.
+                Se n_splits foi maior que n.
         """
         n_splits = self.n_splits
         random_state = self.random_state
@@ -166,5 +166,39 @@ class KFold:
 
 
 class LeaveOneOut(KFold):
+    """Validação cruzada deixando uma amostra de fora (k = n).
+
+    Em cada rodada, uma única amostra é usada como teste e as
+    n - 1 restantes são usadas como treino, gerando n partições.
+
+    Parameters
+    ----------
+    n_splits, shuffle, random_state
+        Herdados de KFold, mas ignorados: o número de partições é
+        sempre o número de amostras e a ordem nunca é embaralhada.
+    """
     def split(self, X):
-        pass
+        """Gera os índices de treino e teste de cada partição.
+
+        Parameters
+        ----------
+        X : array-like
+            Dados de entrada. Apenas o número de amostras é utilizado.
+
+        Yields
+        ------
+        train_idx : ndarray
+            Índices das n - 1 amostras de treino da partição.
+        test_idx : ndarray
+            Índice da única amostra de teste da partição.
+
+        Raises
+        ------
+        ValueError
+            Se X tiver menos de 2 amostras.
+        """
+        if len(X) < 2:
+            raise ValueError("LeaveOneOut precisa de pelo menos 2 amostras.")
+        loocv = KFold(n_splits=len(X))
+        yield from loocv.split(X)
+        
