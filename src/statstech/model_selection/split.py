@@ -90,37 +90,78 @@ def train_test_split(X, y, test_size=0.25, shuffle=True,
 
 # Dúvida: y opcional para não supervisionado?
 
-class KFold: 
+class KFold:
+    """Particiona o conjunto de dados em k subconjuntos (folds) de tamanhos proporcionais.
+
+    Para cada partição, uma é usada como conjunto de teste e k-1 são usadas como conjunto de treino
+
+    Parameters
+    ----------
+    n_splits : int, default=5
+        Quantidade de partições (k). Deve ser pelo menos 2.
+
+    shuffle : bool, default=False
+        Se True, os dados serão embaralhados antes da divisão.
+        Se False, os dados serão divididos na ordem original.
+
+    random_state : int ou None, default=None
+        Seed para o gerador de números aleatórios.
+
+    Raises
+    ------
+    ValueError
+        Se n_splits for menor que 2.
+    """ 
     def __init__(self, n_splits=5, shuffle=False, random_state=None):
+        if self.n_splits < 2: 
+                    raise ValueError("n_splits deve ser pelo menos 2.")
         self.n_splits = n_splits
         self.shuffle = shuffle
         self.random_state = random_state
-        if self.n_splits < 2: 
-            raise ValueError("n_splits deve ser pelo menos 2.")
 
     def split(self, X):
+        """Gera os índices de treino e teste de cada partição.
+
+            Para cada uma das n_splits partições, devolve os índices
+            das amostras de treino e de teste.
+            Cada amostra aparece no conjunto de teste exatamente uma vez.
+                
+            Parameters
+            ----------
+            X : array-like
+            Dados de entrada (features). Apenas os índices são utlizados.
+
+            Yields
+            ------
+            train_idx : ndarray 
+                Índices das amostras de treino da partição.
+
+            teste_idx : ndarray
+                Índices das amostras de teste da partição.
+            
+            Raises
+            ------
+            ValueError
+                Se a quantidade de folds for menor que 2.
+                Se a quantidade de folds foi maior que a quantidade de dados.
+        """
         n_splits = self.n_splits
         random_state = self.random_state
         shuffle = self.shuffle
 
         if n_splits < 2:
-            raise ValueError("n_splits deve ser pelo menos 2")
+            raise ValueError("n_splits deve ser pelo menos 2.")
         
-        X = np.asarray(X)
         n = len(X)
-
         if n_splits > n:
-            raise ValueError("n_splits não deve ser maior que n")
+            raise ValueError("n_splits não deve ser maior que n.")
 
         rng = np.random.default_rng(random_state)
         idx = rng.permutation(n) if shuffle else np.arange(n)
         folds = np.array_split(idx, n_splits)
 
-        for i, f in enumerate(folds):
-            test_idx = f
-            train_idx = folds[:i] + folds[i+1:]
-            train_idx = np.concatenate(train_idx)
-            
+        for i, test_idx in enumerate(folds):
+            train_idx = np.concatenate(folds[:i] + folds[i+1:])
             yield train_idx, test_idx
 
 
