@@ -2,6 +2,7 @@
 
 import copy
 import inspect
+import numpy as np
 
 class BaseEstimator:
     """Base-class of all models and transformers.
@@ -64,7 +65,11 @@ class RegressorMixin:
 
 
 class ClassifierMixin: 
-    pass
+
+    def score(self, X, y):
+        """" Retorna a acurácia da classificação. """
+        y_pred = self.predict(X)
+        return np.mean(y_pred == y)
 
 
 class TransformerMixin: 
