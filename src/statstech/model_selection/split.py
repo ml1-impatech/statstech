@@ -1,8 +1,9 @@
 import numpy as np
 
 
-def train_test_split(X, y, test_size=0.25, shuffle=True,
-                     stratify=None, random_state=None):
+def train_test_split(
+    X, y, test_size=0.25, shuffle=True, stratify=None, random_state=None
+):
     """Divide os dados em conjuntos de treino e teste.
 
     Parameters
@@ -11,7 +12,7 @@ def train_test_split(X, y, test_size=0.25, shuffle=True,
         Dados de entrada (features).
 
     y : array-like
-        Rótulos ou valores alvo correspondentes aos dados de entrada. 
+        Rótulos ou valores alvo correspondentes aos dados de entrada.
 
     test_size : float ou int, default=0.25
         Se float, representa a proporção do conjuntode teste
@@ -28,19 +29,19 @@ def train_test_split(X, y, test_size=0.25, shuffle=True,
         dos dados originais (normalmente é o próprio y).
         Exige shuffle=True. Com stratify, o tamanho do conjunto de teste
         é aproximado. Se None, a divisão é aleatória.
-    
+
     random_state : int ou None, default = None
         Seed para o gerador de números aleatórios.
 
     Returns
-    ------- 
+    -------
     X_train : ndarray
         Conjunto de treino (features).
-    
-    X_test : ndarray
-        Conjunto de teste (features).   
 
-    y_train : ndarray   
+    X_test : ndarray
+        Conjunto de teste (features).
+
+    y_train : ndarray
         Conjunto de treino (rótulos ou valores alvo).
 
     y_test : ndarray
@@ -63,17 +64,19 @@ def train_test_split(X, y, test_size=0.25, shuffle=True,
     if n != len(y):
         raise ValueError(f"X e y devem ter o mesmo tamanho ({n} != {len(y)}).")
 
-    rng = np.random.default_rng(random_state) 
+    rng = np.random.default_rng(random_state)
 
     if isinstance(test_size, float):
         if not 0 < test_size < 1:
-            raise ValueError("test_size deve ser um float entre 0 e 1 "
-            f" (recebido: {test_size}).")
+            raise ValueError(
+                f"test_size deve ser um float entre 0 e 1  (recebido: {test_size})."
+            )
         n_test = int(np.ceil(n * test_size))
     elif isinstance(test_size, int):
         if not 0 < test_size < n:
-            raise ValueError("test_size deve ser um inteiro entre 0 e n "
-            f" (recebido: {test_size}).")
+            raise ValueError(
+                f"test_size deve ser um inteiro entre 0 e n  (recebido: {test_size})."
+            )
         n_test = test_size
     else:
         raise ValueError("test_size deve ser um float ou um inteiro.")
@@ -88,22 +91,23 @@ def train_test_split(X, y, test_size=0.25, shuffle=True,
 
         if len(stratify) != n:
             raise ValueError(
-                 f"X e stratify devem ter o mesmo tamanho ({n} != {len(stratify)}).")
+                f"X e stratify devem ter o mesmo tamanho ({n} != {len(stratify)})."
+            )
         if not shuffle:
             raise ValueError("stratify exige shuffle=True.")
 
         train_parts = []
-        test_parts = []    
-        
-        for k in classes: 
+        test_parts = []
+
+        for k in classes:
             class_idx = np.where(stratify == k)[0]
-            if len(class_idx)<2:
+            if len(class_idx) < 2:
                 raise ValueError(
                     f"A classe {k} tem apenas {len(class_idx)} amostra(s); "
                     "são necessárias pelo menos 2."
                 )
             class_idx = rng.permutation(class_idx)
-            n_test_k = round(len(class_idx)*n_test/n)
+            n_test_k = round(len(class_idx) * n_test / n)
             n_test_k = max(1, min(n_test_k, len(class_idx) - 1))
             test_parts.append(class_idx[:n_test_k])
             train_parts.append(class_idx[n_test_k:])
@@ -112,7 +116,7 @@ def train_test_split(X, y, test_size=0.25, shuffle=True,
         test_idx = np.concatenate(test_parts)
         train_idx = rng.permutation(train_idx)
         test_idx = rng.permutation(test_idx)
- 
+
     else:
         idx = rng.permutation(n) if shuffle else np.arange(n)
         train_idx, test_idx = idx[:n_train], idx[n_train:]
@@ -142,39 +146,40 @@ class KFold:
     ------
     ValueError
         Se n_splits for menor que 2.
-    """ 
+    """
+
     def __init__(self, n_splits=5, shuffle=False, random_state=None):
         self.n_splits = n_splits
         self.shuffle = shuffle
         self.random_state = random_state
-        if self.n_splits < 2: 
+        if self.n_splits < 2:
             raise ValueError("n_splits deve ser pelo menos 2.")
 
     def split(self, X):
         """Gera os índices de treino e teste de cada partição.
 
-            Para cada uma das n_splits partições, devolve os índices
-            das amostras de treino e de teste.
-            Cada amostra aparece no conjunto de teste exatamente uma vez.
-                
-            Parameters
-            ----------
-            X : array-like
-                Dados de entrada (features). Apenas os índices são utlizados.
+        Para cada uma das n_splits partições, devolve os índices
+        das amostras de treino e de teste.
+        Cada amostra aparece no conjunto de teste exatamente uma vez.
 
-            Yields
-            ------
-            train_idx : ndarray 
-                Índices das amostras de treino da partição.
+        Parameters
+        ----------
+        X : array-like
+            Dados de entrada (features). Apenas os índices são utlizados.
 
-            teste_idx : ndarray
-                Índices das amostras de teste da partição.
-            
-            Raises
-            ------
-            ValueError
-                Se a quantidade de folds for menor que 2.
-                Se n_splits foi maior que n.
+        Yields
+        ------
+        train_idx : ndarray
+            Índices das amostras de treino da partição.
+
+        teste_idx : ndarray
+            Índices das amostras de teste da partição.
+
+        Raises
+        ------
+        ValueError
+            Se a quantidade de folds for menor que 2.
+            Se n_splits foi maior que n.
         """
         n_splits = self.n_splits
         random_state = self.random_state
@@ -182,7 +187,7 @@ class KFold:
 
         if n_splits < 2:
             raise ValueError("n_splits deve ser pelo menos 2.")
-        
+
         n = len(X)
         if n_splits > n:
             raise ValueError("n_splits não deve ser maior que n.")
@@ -192,7 +197,7 @@ class KFold:
         folds = np.array_split(idx, n_splits)
 
         for i, test_idx in enumerate(folds):
-            train_idx = np.concatenate(folds[:i] + folds[i+1:])
+            train_idx = np.concatenate(folds[:i] + folds[i + 1 :])
             yield train_idx, test_idx
 
 
@@ -208,6 +213,7 @@ class LeaveOneOut(KFold):
         Herdados de KFold, mas ignorados: o número de partições é
         sempre o número de amostras e a ordem nunca é embaralhada.
     """
+
     def split(self, X):
         """Gera os índices de treino e teste de cada partição.
 
@@ -232,4 +238,3 @@ class LeaveOneOut(KFold):
             raise ValueError("LeaveOneOut precisa de pelo menos 2 amostras.")
         loocv = KFold(n_splits=len(X))
         yield from loocv.split(X)
-        
