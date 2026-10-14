@@ -11,7 +11,7 @@ def cross_val_score(estimator, X, y, cv=5, scoring=None):
 
     Parameters
     ----------
-    estimator : objeto com fit, predictor e score
+    estimator : objeto com fit, predict e score
         Modelo a ser avaliado. Uma cópia nova é criada com clone
         a cada partição. 
 
@@ -69,6 +69,4 @@ def cross_val_score(estimator, X, y, cv=5, scoring=None):
         scores.append(score)
 
     return np.array(scores)
-
-# As métricas precisam ser implementadas 
 
