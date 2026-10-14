@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from statstech.model_selection.split import train_test_split
+from statstech.model_selection.split import train_test_split, KFold, LeaveOneOut
 
 def test_size_float_025():
     X, y = np.arange(10), np.arange(10)
@@ -91,3 +91,28 @@ def test_shuffle_false():
         X, y, test_size=0.25, shuffle=False)
     assert np.array_equal(X_train, np.arange(7))
     assert np.array_equal(X_test, np.arange(7, 10))
+
+def test_kfold_each_sample_tested_once():
+    X = np.arange(13)
+    splits = list(KFold(n_splits=5).split(X))
+
+    all_test = np.concatenate([test for _, test in splits])
+
+    np.testing.assert_array_equal(np.sort(all_test), X)
+
+def test_kfold_test_train_complementary():
+    X = np.arange(13)
+
+    for train_idx, test_idx in KFold(n_splits=5).split(X):
+        assert np.intersect1d(train_idx, test_idx).size == 0
+        np.testing.assert_array_equal(np.sort(np.concatenate([train_idx, test_idx])), X)
+
+def test_kfold_num_len_folds():
+    X = np.arange(13)
+    splits = list(KFold(n_splits=5).split(X))
+
+    assert len(splits) == 5
+
+    len_splits = [len(test) for _, test in splits]
+
+    assert len_splits == [3, 3, 3, 2, 2]
