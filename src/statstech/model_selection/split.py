@@ -1,6 +1,54 @@
 import numpy as np
 
 
+def _resolve_n_test(test_size, n):
+    """Converte test_size no número de amostras do conjunto de teste."""
+    if isinstance(test_size, float):
+        if not 0 < test_size < 1:
+            raise ValueError(
+                f"test_size deve ser um float entre 0 e 1 (recebido: {test_size})."
+            )
+        n_test = int(np.ceil(n * test_size))
+    elif isinstance(test_size, int):
+        if not 0 < test_size < n:
+            raise ValueError(
+                f"test_size deve ser um inteiro entre 0 e n={n} "
+                f"(recebido: {test_size})."
+            )
+        n_test = test_size
+    else:
+        raise ValueError("test_size deve ser um float ou um inteiro.")
+
+    if n - n_test <= 0:
+        raise ValueError("train_size precisa ser pelo menos 1.")
+    return n_test
+
+
+def _stratified_indices(stratify, n_test, rng):
+    """Sorteia índices de treino e teste preservando as proporções."""
+    n = len(stratify)
+    train_parts, test_parts = [], []
+
+    for k in np.unique(stratify):
+        class_idx = np.flatnonzero(stratify == k)
+        if len(class_idx) < 2:
+            raise ValueError(
+                f"A classe {k} tem apenas {len(class_idx)} "
+                "amostra(s); são necessárias pelo menos 2."
+            )
+
+        class_idx = rng.permutation(class_idx)
+        n_test_k = round(len(class_idx) * n_test / n)
+        n_test_k = max(1, min(n_test_k, len(class_idx) - 1))
+
+        test_parts.append(class_idx[:n_test_k])
+        train_parts.append(class_idx[n_test_k:])
+
+    train_idx = rng.permutation(np.concatenate(train_parts))
+    test_idx = rng.permutation(np.concatenate(test_parts))
+    return train_idx, test_idx
+
+
 def train_test_split(
     X, y, test_size=0.25, shuffle=True, stratify=None, random_state=None
 ):
@@ -15,7 +63,7 @@ def train_test_split(
         Rótulos ou valores alvo correspondentes aos dados de entrada.
 
     test_size : float ou int, default=0.25
-        Se float, representa a proporção do conjuntode teste
+        Se float, representa a proporção do conjunto de teste
         em relação ao total de dados (número de amostras arredondado para cima).
         Se int, representa o número absoluto de amostras no conjunto de teste.
 
@@ -65,61 +113,20 @@ def train_test_split(
         raise ValueError(f"X e y devem ter o mesmo tamanho ({n} != {len(y)}).")
 
     rng = np.random.default_rng(random_state)
-
-    if isinstance(test_size, float):
-        if not 0 < test_size < 1:
-            raise ValueError(
-                f"test_size deve ser um float entre 0 e 1  (recebido: {test_size})."
-            )
-        n_test = int(np.ceil(n * test_size))
-    elif isinstance(test_size, int):
-        if not 0 < test_size < n:
-            raise ValueError(
-                f"test_size deve ser um inteiro entre 0 e n  (recebido: {test_size})."
-            )
-        n_test = test_size
-    else:
-        raise ValueError("test_size deve ser um float ou um inteiro.")
-
-    n_train = n - n_test
-    if n_train <= 0:
-        raise ValueError("train_size precisa ser pelo menos 1.")
+    n_test = _resolve_n_test(test_size, n)
 
     if stratify is not None:
         stratify = np.asarray(stratify)
-        classes = np.unique(stratify)
-
         if len(stratify) != n:
             raise ValueError(
                 f"X e stratify devem ter o mesmo tamanho ({n} != {len(stratify)})."
             )
         if not shuffle:
             raise ValueError("stratify exige shuffle=True.")
-
-        train_parts = []
-        test_parts = []
-
-        for k in classes:
-            class_idx = np.where(stratify == k)[0]
-            if len(class_idx) < 2:
-                raise ValueError(
-                    f"A classe {k} tem apenas {len(class_idx)} amostra(s); "
-                    "são necessárias pelo menos 2."
-                )
-            class_idx = rng.permutation(class_idx)
-            n_test_k = round(len(class_idx) * n_test / n)
-            n_test_k = max(1, min(n_test_k, len(class_idx) - 1))
-            test_parts.append(class_idx[:n_test_k])
-            train_parts.append(class_idx[n_test_k:])
-
-        train_idx = np.concatenate(train_parts)
-        test_idx = np.concatenate(test_parts)
-        train_idx = rng.permutation(train_idx)
-        test_idx = rng.permutation(test_idx)
-
+        train_idx, test_idx = _stratified_indices(stratify, n_test, rng)
     else:
         idx = rng.permutation(n) if shuffle else np.arange(n)
-        train_idx, test_idx = idx[:n_train], idx[n_train:]
+        train_idx, test_idx = idx[: n - n_test], idx[n - n_test :]
 
     return X[train_idx], X[test_idx], y[train_idx], y[test_idx]
 
@@ -149,11 +156,11 @@ class KFold:
     """
 
     def __init__(self, n_splits=5, shuffle=False, random_state=None):
+        if n_splits < 2:
+            raise ValueError("n_splits deve ser pelo menos 2.")
         self.n_splits = n_splits
         self.shuffle = shuffle
         self.random_state = random_state
-        if self.n_splits < 2:
-            raise ValueError("n_splits deve ser pelo menos 2.")
 
     def split(self, X):
         """Gera os índices de treino e teste de cada partição.
@@ -165,36 +172,32 @@ class KFold:
         Parameters
         ----------
         X : array-like
-            Dados de entrada (features). Apenas os índices são utlizados.
+            Dados de entrada (features). Apenas os índices são utilizados.
 
         Yields
         ------
         train_idx : ndarray
             Índices das amostras de treino da partição.
 
-        teste_idx : ndarray
+        test_idx : ndarray
             Índices das amostras de teste da partição.
 
         Raises
         ------
         ValueError
             Se a quantidade de folds for menor que 2.
-            Se n_splits foi maior que n.
+            Se n_splits for maior que n.
         """
-        n_splits = self.n_splits
-        random_state = self.random_state
-        shuffle = self.shuffle
-
-        if n_splits < 2:
+        if self.n_splits < 2:
             raise ValueError("n_splits deve ser pelo menos 2.")
 
         n = len(X)
-        if n_splits > n:
+        if self.n_splits > n:
             raise ValueError("n_splits não deve ser maior que n.")
 
-        rng = np.random.default_rng(random_state)
-        idx = rng.permutation(n) if shuffle else np.arange(n)
-        folds = np.array_split(idx, n_splits)
+        rng = np.random.default_rng(self.random_state)
+        idx = rng.permutation(n) if self.shuffle else np.arange(n)
+        folds = np.array_split(idx, self.n_splits)
 
         for i, test_idx in enumerate(folds):
             train_idx = np.concatenate(folds[:i] + folds[i + 1 :])
@@ -235,6 +238,7 @@ class LeaveOneOut(KFold):
             Se X tiver menos de 2 amostras.
         """
         if len(X) < 2:
-            raise ValueError("LeaveOneOut precisa de pelo menos 2 amostras.")
-        loocv = KFold(n_splits=len(X))
-        yield from loocv.split(X)
+            raise ValueError(
+                f"LeaveOneOut precisa de pelo menos 2 amostras (recebido {len(X)})."
+            )
+        yield from KFold(n_splits=len(X)).split(X)
