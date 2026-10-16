@@ -1,7 +1,19 @@
+from collections.abc import Callable
+from typing import Any
+
 import numpy as np
+from numpy.typing import ArrayLike, NDArray
+
+# Função que recebe um ou mais arrays e devolve a estatística.
+StatisticCallable = Callable[..., Any]
 
 
-def bootstrap(data, statistic, n_bootstrap=1000, random_state=None):
+def bootstrap(
+    data: ArrayLike | tuple[ArrayLike, ...],
+    statistic: StatisticCallable,
+    n_bootstrap: int = 1000,
+    random_state: int | np.random.Generator | None = None,
+) -> tuple[NDArray[Any], NDArray[Any] | float]:
     """Realiza bootstrap para estimar a variabilidade de uma estatística.
 
     Parameters
@@ -56,6 +68,3 @@ def bootstrap(data, statistic, n_bootstrap=1000, random_state=None):
     std_error = np.std(estimates, axis=0, ddof=1)
 
     return estimates, std_error
-
-
-# Dúvida: retornar intervalo de confiança também?

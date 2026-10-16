@@ -1,7 +1,11 @@
+from collections.abc import Iterator
+from typing import Any
+
 import numpy as np
+from numpy.typing import ArrayLike, NDArray
 
 
-def _resolve_n_test(test_size, n):
+def _resolve_n_test(test_size: float, n: int) -> int:
     """Converte test_size no número de amostras do conjunto de teste."""
     if isinstance(test_size, float):
         if not 0 < test_size < 1:
@@ -24,7 +28,9 @@ def _resolve_n_test(test_size, n):
     return n_test
 
 
-def _stratified_indices(stratify, n_test, rng):
+def _stratified_indices(
+    stratify: NDArray[Any], n_test: int, rng: np.random.Generator
+) -> tuple[NDArray[np.intp], NDArray[np.intp]]:
     """Sorteia índices de treino e teste preservando as proporções."""
     n = len(stratify)
     train_parts, test_parts = [], []
@@ -50,8 +56,13 @@ def _stratified_indices(stratify, n_test, rng):
 
 
 def train_test_split(
-    X, y, test_size=0.25, shuffle=True, stratify=None, random_state=None
-):
+    X: ArrayLike,
+    y: ArrayLike,
+    test_size: float | int = 0.25,
+    shuffle: bool = True,
+    stratify: ArrayLike | None = None,
+    random_state: int | np.random.Generator | None = None,
+) -> tuple[NDArray[Any], NDArray[Any], NDArray[Any], NDArray[Any]]:
     """Divide os dados em conjuntos de treino e teste.
 
     Parameters
@@ -78,7 +89,7 @@ def train_test_split(
         Exige shuffle=True. Com stratify, o tamanho do conjunto de teste
         é aproximado. Se None, a divisão é aleatória.
 
-    random_state : int ou None, default = None
+    random_state : int, Generator ou None, default = None
         Seed para o gerador de números aleatórios.
 
     Returns
@@ -149,20 +160,38 @@ class KFold:
     random_state : int ou None, default=None
         Seed para o gerador de números aleatórios.
 
+    Attributes
+    ----------
+    n_splits : int
+        Quantidade de partições configurada.
+
+    shuffle : bool
+        Indica se os dados são embaralhados antes da divisão.
+
+    random_state : int, Generator ou None
+        Objeto ou seed responsável pela aleatoriedade.
+
     Raises
     ------
     ValueError
         Se n_splits for menor que 2.
     """
 
-    def __init__(self, n_splits=5, shuffle=False, random_state=None):
+    def __init__(
+        self,
+        n_splits: int = 5,
+        shuffle: bool = False,
+        random_state: int | np.random.Generator | None = None,
+    ) -> None:
         if n_splits < 2:
             raise ValueError("n_splits deve ser pelo menos 2.")
         self.n_splits = n_splits
         self.shuffle = shuffle
         self.random_state = random_state
 
-    def split(self, X):
+    def split(
+        self, X: ArrayLike
+    ) -> Iterator[tuple[NDArray[np.intp], NDArray[np.intp]]]:
         """Gera os índices de treino e teste de cada partição.
 
         Para cada uma das n_splits partições, devolve os índices
@@ -191,7 +220,7 @@ class KFold:
         if self.n_splits < 2:
             raise ValueError("n_splits deve ser pelo menos 2.")
 
-        n = len(X)
+        n = len(np.asarray(X))
         if self.n_splits > n:
             raise ValueError("n_splits não deve ser maior que n.")
 
@@ -209,15 +238,11 @@ class LeaveOneOut(KFold):
 
     Em cada rodada, uma única amostra é usada como teste e as
     n - 1 restantes são usadas como treino, gerando n partições.
-
-    Parameters
-    ----------
-    n_splits, shuffle, random_state
-        Herdados de KFold, mas ignorados: o número de partições é
-        sempre o número de amostras e a ordem nunca é embaralhada.
     """
 
-    def split(self, X):
+    def split(
+        self, X: ArrayLike
+    ) -> Iterator[tuple[NDArray[np.intp], NDArray[np.intp]]]:
         """Gera os índices de treino e teste de cada partição.
 
         Parameters
@@ -237,8 +262,9 @@ class LeaveOneOut(KFold):
         ValueError
             Se X tiver menos de 2 amostras.
         """
-        if len(X) < 2:
+        n = len(np.asarray(X))
+        if n < 2:
             raise ValueError(
-                f"LeaveOneOut precisa de pelo menos 2 amostras (recebido {len(X)})."
+                f"LeaveOneOut precisa de pelo menos 2 amostras (recebido {n})."
             )
-        yield from KFold(n_splits=len(X)).split(X)
+        yield from KFold(n_splits=n).split(X)
