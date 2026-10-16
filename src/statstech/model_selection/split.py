@@ -4,8 +4,10 @@ from typing import Any
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
+from ..utils.validation import check_X_y
 
-def _resolve_n_test(test_size: float, n: int) -> int:
+
+def _resolve_n_test(test_size: float | int, n: int) -> int:
     """Converte test_size no número de amostras do conjunto de teste."""
     if isinstance(test_size, float):
         if not 0 < test_size < 1:
@@ -21,7 +23,7 @@ def _resolve_n_test(test_size: float, n: int) -> int:
             )
         n_test = test_size
     else:
-        raise ValueError("test_size deve ser um float ou um inteiro.")
+        raise TypeError("test_size deve ser um float ou um inteiro.")
 
     if n - n_test <= 0:
         raise ValueError("train_size precisa ser pelo menos 1.")
@@ -67,15 +69,17 @@ def train_test_split(
 
     Parameters
     ----------
-    X : array-like
-        Dados de entrada (features).
+    X : array-like de formato (n_amostras, n_features)
+        Dados de entrada. Deve ser 2D e numérico, sem NaN ou inf.
+        Para uma única feature, use X.reshape(-1, 1).
 
-    y : array-like
-        Rótulos ou valores alvo correspondentes aos dados de entrada.
+    y : array-like de formato (n_amostras,)
+        Valores alvo. Deve ser 1D e ter o mesmo número de amostras
+        de X.
 
     test_size : float ou int, default=0.25
-        Se float, representa a proporção do conjunto de teste
-        em relação ao total de dados (número de amostras arredondado para cima).
+        Se float, representa a proporção do conjunto de teste em relação ao
+        total de dados (número de amostras arredondado para cima).
         Se int, representa o número absoluto de amostras no conjunto de teste.
 
     shuffle : bool, default=True
@@ -83,13 +87,12 @@ def train_test_split(
         Se False, os dados serão divididos na ordem original.
 
     stratify : array-like ou None, default=None
-        Rótulos usados para manter, no treino e no teste, a mesma
-        proporção de cada classe
-        dos dados originais (normalmente é o próprio y).
+        Rótulos usados para manter, no treino e no teste, a mesma proporção
+        de cada classe dos dados originais (normalmente é o próprio y).
         Exige shuffle=True. Com stratify, o tamanho do conjunto de teste
         é aproximado. Se None, a divisão é aleatória.
 
-    random_state : int, Generator ou None, default = None
+    random_state : int, Generator ou None, default=None
         Seed para o gerador de números aleatórios.
 
     Returns
@@ -109,7 +112,9 @@ def train_test_split(
     Raises
     ------
     ValueError
-        Se X e y não tiverem o mesmo tamanho.
+        Se X ou y forem inválidos (ver check_X_y): X que não seja 2D
+        ou numérico, y que não seja 1D, valores não finitos ou
+        tamanhos diferentes.
         Se test_size não for um float entre 0 e 1 ou um inteiro
         entre 0 e n.
         Se train_size for menor ou igual a 0.
@@ -117,11 +122,8 @@ def train_test_split(
         Se stratify for fornecido com shuffle=False.
         Se alguma classe de stratify tiver menos de 2 amostras.
     """
-    X, y = np.asarray(X), np.asarray(y)
-
-    n = len(X)
-    if n != len(y):
-        raise ValueError(f"X e y devem ter o mesmo tamanho ({n} != {len(y)}).")
+    X_arr, y_arr = check_X_y(X, y)
+    n = len(X_arr)
 
     rng = np.random.default_rng(random_state)
     n_test = _resolve_n_test(test_size, n)
@@ -139,7 +141,7 @@ def train_test_split(
         idx = rng.permutation(n) if shuffle else np.arange(n)
         train_idx, test_idx = idx[: n - n_test], idx[n - n_test :]
 
-    return X[train_idx], X[test_idx], y[train_idx], y[test_idx]
+    return X_arr[train_idx], X_arr[test_idx], y_arr[train_idx], y_arr[test_idx]
 
 
 class KFold:
@@ -157,7 +159,7 @@ class KFold:
         Se True, os dados serão embaralhados antes da divisão.
         Se False, os dados serão divididos na ordem original.
 
-    random_state : int ou None, default=None
+    random_state : int, Generator ou None, default=None
         Seed para o gerador de números aleatórios.
 
     Attributes
@@ -254,6 +256,8 @@ class LeaveOneOut(KFold):
         ------
         train_idx : ndarray
             Índices das n - 1 amostras de treino da partição.
+
+
         test_idx : ndarray
             Índice da única amostra de teste da partição.
 

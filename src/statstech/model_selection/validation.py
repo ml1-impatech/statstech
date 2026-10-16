@@ -5,6 +5,7 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from ..base import clone
+from ..utils.validation import check_X_y
 from .split import KFold
 
 
@@ -95,11 +96,13 @@ def cross_val_score(
         Modelo a ser avaliado. Uma cópia nova é criada com clone
         a cada partição.
 
-    X : array-like de shape (n_amostras, n_features)
-        Dados de entrada (features).
+    X : array-like de formato (n_amostras, n_features)
+        Dados de entrada. Deve ser 2D e numérico, sem NaN ou inf.
+        Para uma única feature, use X.reshape(-1, 1).
 
-    y : array-like de shape (n_amostras,)
-        Rótulos ou valores correspondentes a X.
+    y : array-like de formato (n_amostras,)
+        Valores alvo. Deve ser 1D e ter o mesmo número de amostras
+        de X.
 
     cv : int ou objeto divisor, default=5
         Se int, usa KFold com esse número de partições. Também
@@ -118,21 +121,21 @@ def cross_val_score(
     Raises
     ------
     ValueError
-        Se X e y não tiverem o mesmo tamanho.
-        Se scoring não for None ou callable.
+        Se X ou y forem inválidos (ver check_X_y): X que não seja 2D
+        ou numérico, y que não seja 1D, valores não finitos ou
+        tamanhos diferentes.
+        Se scoring não for None nem uma função.
     """
     if scoring is not None and not callable(scoring):
         raise ValueError("scoring deve ser None ou uma função.")
 
-    X, y = np.asarray(X), np.asarray(y)
-    if len(X) != len(y):
-        raise ValueError(f"X e y devem ter o mesmo tamanho ({len(X)} != {len(y)}).")
+    X_arr, y_arr = check_X_y(X, y)
 
     splitter = KFold(n_splits=cv) if isinstance(cv, int) else cv
 
     return np.array(
         [
-            _fit_and_score(estimator, X, y, train_idx, test_idx, scoring)
-            for train_idx, test_idx in splitter.split(X)
+            _fit_and_score(estimator, X_arr, y_arr, train_idx, test_idx, scoring)
+            for train_idx, test_idx in splitter.split(X_arr)
         ]
     )
