@@ -2,27 +2,7 @@ from collections.abc import Callable
 import numpy as np
 import numpy.typing as npt
 import warnings
-
-
-def _validate_confusion_matrix(c_matrix: list[list[int]]) -> None:
-    """Valida se a matriz de confusão é não vazia e quadrada."""
-    if len(c_matrix) == 0:
-        raise ValueError("A matriz de confusão deve ter ao menos um elemento.")
-
-    if not all(len(row) == len(c_matrix) for row in c_matrix):
-        raise ValueError("A matriz de confusão deve ser quadrada.")
-
-
-def _validate_class_index( c_matrix: list[list[int]], class_k: int) -> None:
-    """Valida a matriz de confusão e o índice da classe."""
-    _validate_confusion_matrix(c_matrix)
-
-    if isinstance(class_k, (bool, np.bool_)) or not isinstance(class_k, (int, np.integer)):
-        raise ValueError("class_k deve ser um inteiro.")
-
-    if not 0 <= class_k < len(c_matrix):
-        raise ValueError("class_k está fora do intervalo válido.")
-
+from utils.validation import _validate_confusion_matrix, _validate_class_index, _validate_log_loss_entries, _validate_roc_auc_score, _validate_bin_roc_auc
 
 def confusion_matrix(y_true: list[int], y_pred: list[int], classes: list[int]) -> list[list[int]]:
     """Calcula a matriz de confusão para um problema de classificação.
@@ -226,7 +206,7 @@ def accuracy_score(c_matrix: list[list[int]]) -> float:
         Se a matriz de confusão não for quadrada.
     """
     _validate_confusion_matrix(c_matrix)
-    
+
     true_predictions = 0
     total = 0
     for i in range(len(c_matrix)):
@@ -540,32 +520,11 @@ def log_loss(y_true: npt.ArrayLike, p_matrix: npt.ArrayLike, classes: list[int],
         Se y_true conter classes que não estão em classes, se houver 
         probabilidades inválidas ou se o valor de epsilon for inválido.
     """
+
     p_matrix = np.asarray(p_matrix, np.float64)
-    y_true = np.asarray(y_true)
+    y_true, p_matrix, classes, epsilon = _validate_log_loss_entries(y_true, p_matrix, classes, epsilon)
 
-    if p_matrix.ndim != 2:
-        raise ValueError("A dimensão de p_matrix deve ser igual a 2.")
-    if y_true.ndim != 1:
-        raise ValueError("A dimensão de y_true deve ser igual a 1.")
-
-    n_samples, n_classes = p_matrix.shape
-
-    if n_samples == 0 or n_classes == 0:
-        raise ValueError("p_matrix deve conter ao menos uma observação e uma classe.")
-    if len(classes) != n_classes:
-        raise ValueError("O número de classes deve ser igual ao número de colunas de p_matrix.")
-    if len(set(classes)) != len(classes):
-        raise ValueError("classes não pode conter duplicatas.")
-    if not np.isfinite(epsilon) or not 0 < epsilon < 1:
-        raise ValueError("epsilon deve ser finito e estar entre 0 e 1.")
-    if len(y_true) != n_samples:
-        raise ValueError("As dimensões de p_matrix e y_true devem ser compatíveis.")
-    if not np.all(np.isfinite(p_matrix)):
-        raise ValueError("p_matrix não pode conter NaN ou infinito.")
-    if np.any(p_matrix < 0) or np.any(p_matrix > 1):
-        raise ValueError("p_matrix contém probabilidades fora do intervalo.")
-    if not np.allclose(p_matrix.sum(axis=1), 1.0):
-        raise ValueError("As probabilidades de cada linha devem somar 1.")
+    n_classes = p_matrix.shape
 
     dict_classes = {}
     for i in range(n_classes):
@@ -611,23 +570,7 @@ def binary_roc_auc(y_true: npt.ArrayLike, y_score: npt.ArrayLike) -> float:
         contiver valores não finitos ou se y_true não contiver
         ambas as classes.
     """
-    y_true = np.asarray(y_true)
-    y_score = np.asarray(y_score, dtype=float)
-
-    if y_true.ndim != 1 or y_score.ndim != 1:
-        raise ValueError("y_true e y_score devem ser unidimensionais.")
-
-    if y_true.size != y_score.size:
-        raise ValueError("y_true e y_score devem ter o mesmo tamanho.")
-
-    if y_true.size == 0:
-        raise ValueError("y_true e y_score devem ser não vazios.")
-
-    if not np.all(np.isin(y_true, [0, 1])):
-        raise ValueError("y_true deve conter apenas 0 e 1.")
-
-    if not np.all(np.isfinite(y_score)):
-        raise ValueError("y_score deve conter apenas valores finitos.")
+    y_true, y_score = _validate_bin_roc_auc(y_true, y_score)
 
     n_positive = np.sum(y_true == 1)
     n_negative = np.sum(y_true == 0)
@@ -709,43 +652,7 @@ def roc_auc_score(y_true: npt.ArrayLike, y_score: npt.ArrayLike, class_k: int | 
         Também pode ser gerado se os dados da classificação binária
         forem inválidos.
     """
-    y_true = np.asarray(y_true)
-    y_score = np.asarray(y_score, dtype=float)
-
-    if y_true.ndim != 1: 
-        raise ValueError("y_true deve ser unidimensional.")
-
-    if y_score.ndim == 1:
-        if class_k is not None:
-            raise ValueError("class_k deve ser None para classificação binária.")
-        
-        return binary_roc_auc(y_true, y_score)
-
-    if y_score.ndim != 2:
-        raise ValueError("y_score deve ser unidimensional ou bidimensional.")
-
-    if y_true.size != y_score.shape[0]:
-        raise ValueError("O tamanho de y_score deve ser o número de linhas de y_true.")
-
-    if y_score.shape[1] < 2:
-        raise ValueError("y_score deve conter ao menos 2 colunas de classes.")
-
-    if not np.all(np.isfinite(y_score)):
-        raise ValueError("Os valores de y_score devem ser finitos.")
-
-    if class_k is None:
-        raise ValueError("class_k é exigida para classificações multiclasse.")
-
-    if isinstance(class_k, (bool, np.bool_)) or not isinstance(class_k, (int, np.integer)):
-        raise ValueError("class_k deve ser um inteiro.")
-
-    n_classes = y_score.shape[1]
-
-    if class_k < 0 or class_k >= n_classes:
-        raise ValueError("class_k está fora do intervalo válido.")
-
-    if not np.all(np.isin(y_true, np.arange(n_classes))):
-        raise ValueError("Os labels de y_true devem corresponder aos índices das colunas de y_score.")
+    y_true, y_score = _validate_roc_auc_score(y_true, y_score, class_k)
 
     y_true_bin = (y_true == class_k).astype(int)
     y_score_bin = y_score[:, class_k]

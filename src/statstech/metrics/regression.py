@@ -1,53 +1,6 @@
 import numpy as np
 import numpy.typing as npt
-
-def _validate_regression_inputs(
-        y_true: npt.ArrayLike, 
-        y_pred: npt.ArrayLike,
-        ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-    """Valida e converte os arrays de valores reais e previstos.
-    
-    Parameters
-    ----------
-    y_true: array-like
-        Array com os valores reais do alvo.
-    y_pred: array-like
-        Array com os valores previstos pelo modelo.
-
-
-    Returns
-    -------
-    y_true: numpy.ndarray
-        Array unidimensional validado, com os valores float64 reais. 
-    y_pred: numpy.ndarray
-        Array unidimensional validado, com os valores float64 previstos. 
-
-    Raises
-    ------
-    ValueError
-        Se os arrays tiverem formatos diferentes.
-        Se os arrays não forem unidimensionais.
-        Se os arrays estiverem vazios.
-        Se os arrays contiverem NaN ou infinito.
-    """
-    y_true = np.asarray(y_true, dtype=np.float64)
-    y_pred = np.asarray(y_pred, dtype=np.float64)
-
-    if y_true.shape != y_pred.shape:
-        raise ValueError("Os arrays devem ter o mesmo formato.")
-
-    if y_true.ndim != 1 or y_pred.ndim != 1:
-        raise ValueError("Os arrays devem ser unidimensionais.")
-
-    if y_pred.size == 0:
-        raise ValueError("Os arrays devem não estar vazios.")
-
-    if not np.all(np.isfinite(y_true)) or not np.all(np.isfinite(y_pred)):
-        raise ValueError("Os arrays não podem conter NaN ou infinito.")
-
-    return y_true, y_pred
-
-    
+from utils.validation import _validate_regression_inputs
 
 def residual_sum_squares(y_true: npt.ArrayLike, y_pred: npt.ArrayLike) -> float:
     """Calcula a Soma dos Quadrados dos Resíduos.
