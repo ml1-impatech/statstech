@@ -126,13 +126,41 @@ Funcionalidades usadas por vários módulos ficam num lugar só, para evitar rep
 - **`StandardScaler`:** desvio-padrão com divisão por n. Uma coluna constante é
   dividida por 1, em vez de gerar NaN.
 
-### 15. Validação e métricas
+### 15. Validação, busca e bootstrap
 
-- **`train_test_split`:** com `test_size` fracionário, o número de amostras de
-  teste é arredondado para cima. Com `stratify`, o tamanho é aproximado.
-- **Métricas por nome:** `cross_val_score` e `GridSearchCV` aceitam nomes
-  (`"rmse"`, `"f1_macro"`, `"log_loss"`). Em métricas de erro, a busca escolhe
-  o menor valor; nas demais, o maior.
+- **Divisores:** `KFold`, `StratifiedKFold` e `LeaveOneOut` têm a mesma
+  interface, `split(X, y=None)`. O `StratifiedKFold` usa o `y` para manter
+  em cada fold a proporção de cada classe; os outros dois o ignoram. Assim,
+  `cross_val_score`, `cross_val_predict` e `GridSearchCV` aceitam qualquer um
+  deles como `cv`.
+- **`cv` inteiro:** usa `KFold(cv)` sem embaralhar.
+  Recomendamos passar o divisor explícito, com `shuffle=True` e
+  `random_state` inteiro. O `random_state` inteiro garante os mesmos folds a
+  cada chamada, e portanto que todas as combinações de uma busca são
+  avaliadas nas mesmas partições.
+- **`StratifiedKFold`:** cada classe precisa ter pelo menos `n_splits`
+  exemplos; senão algum fold de teste ficaria sem ela, e a função levanta
+  erro.
+- **`cross_val_predict`:** prevê cada amostra com um modelo que não a viu,
+  e levanta erro se o `cv` não colocar cada amostra no teste exatamente uma
+  vez. Com `method="predict_proba"`, as colunas seguem `np.unique(y)`; se um
+  fold de treino não tiver alguma classe, a probabilidade dela é 0 nas
+  amostras daquele fold.
+- **`GridSearchCV` e métricas por nome:** com um nome de métrica de erro
+  (`"mse"`, `"rmse"`, `"mae"`, `"log_loss"`), a busca escolhe o menor valor;
+  nos demais casos, o maior. Uma função passada diretamente é sempre
+  maximizada, então métricas de erro devem ser passadas pelo nome.
+- **`error_score`:** com o padrão `np.nan`, uma combinação que dá erro
+  recebe `NaN`, emite um aviso e nunca é escolhida; a busca continua. Com
+  `error_score="raise"`, o erro interrompe a busca.
+- **`cv_results_`:** guarda, para cada combinação, a média, o desvio-padrão
+  amostral (`ddof=1`) e as notas de cada fold. O desvio permite dizer se a
+  diferença entre duas combinações é maior que a variação entre folds.
+- **`bootstrap` e `bootstrap_ci`:** o `bootstrap` devolve as estimativas
+  reamostradas e o erro-padrão. O intervalo de confiança fica numa função
+  separada, `bootstrap_ci`, para não mudar o que o `bootstrap` devolve. O
+  intervalo é calculado pelo método do percentil; se a estatística devolve
+  um vetor, cada posição recebe o seu intervalo.
 - **Precisão, revocação, especificidade e F1** com denominador zero devolvem 0
-  com um aviso, em vez de interromper a validação cruzada.
+  e emitem um `UserWarning`.
 - **R² com y constante:** devolve 1 se a previsão for perfeita e 0 caso contrário.

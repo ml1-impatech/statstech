@@ -21,10 +21,10 @@ class EstimatorProtocol(Protocol):
 
 
 class SplitterProtocol(Protocol):
-    """Divisor de dados aceito como cv, KFold e LeaveOneOut."""
+    """Divisor de dados aceito como cv: KFold, StratifiedKFold e LeaveOneOut."""
 
     def split(
-        self, X: NDArray[Any]
+        self, X: NDArray[Any], y: NDArray[Any] | None = None
     ) -> Iterator[tuple[NDArray[np.intp], NDArray[np.intp]]]: ...
 
 
@@ -120,8 +120,9 @@ def cross_val_score(
 
     cv : int ou objeto divisor, default=5
         Se int, usa KFold com esse número de partições. Também
-        aceita um divisor já configurado (KFold, LeaveOneOut) que
+        aceita um divisor já configurado (KFold, StratifiedKFold, LeaveOneOut) que
         tenha o método split.
+        Com int, KFold não embaralha.
 
     scoring : callable, str ou None, default=None
         Função com assinatura scoring(y_true, y_pred) que devolve
@@ -166,6 +167,93 @@ def cross_val_score(
             _fit_and_score(
                 estimator, X_arr, y_arr, train_idx, test_idx, scorer, use_proba
             )
-            for train_idx, test_idx in splitter.split(X_arr)
+            for train_idx, test_idx in splitter.split(X_arr, y_arr)
         ]
     )
+
+
+def cross_val_predict(
+    estimator: EstimatorProtocol,
+    X: ArrayLike,
+    y: ArrayLike,
+    cv: int | SplitterProtocol = 5,
+    method: str = "predict",
+) -> NDArray[Any]:
+    """Prevê cada amostra com um modelo que não a viu no treino.
+
+    Para cada partição gerada por cv, treina uma cópia do modelo com
+    os dados de treino e guarda as previsões nos dados de teste. Cada
+    amostra é prevista exatamente uma vez.
+
+    Parameters
+    ----------
+    estimator : objeto com fit e predict
+        Modelo a ser avaliado. Uma cópia nova é criada com clone a
+        cada partição. Com method="predict_proba", precisa ter
+        predict_proba e classes_.
+    X : array-like de formato (n_amostras, n_features)
+        Dados de entrada.
+    y : array-like de formato (n_amostras,)
+        Valores alvo.
+    cv : int ou objeto divisor, default=5
+        Se int, usa KFold com esse número de partições, sem
+        embaralhar. Também aceita um divisor (KFold, StratifiedKFold,
+        LeaveOneOut), desde que cada amostra caia no teste uma vez.
+    method : {"predict", "predict_proba"}, default="predict"
+        Método do modelo usado para prever.
+
+    Returns
+    -------
+    predictions : ndarray
+        Formato (n_amostras,) com method="predict" e
+        (n_amostras, n_classes) com method="predict_proba", com as
+        colunas na ordem de np.unique(y). Se um fold de treino não
+        tiver alguma classe, a probabilidade dessa classe é 0 nas
+        amostras daquele fold.
+
+    Raises
+    ------
+    ValueError
+        Se method for inválido, se X ou y forem inválidos (ver
+        check_X_y) ou se cv não colocar cada amostra no teste
+        exatamente uma vez.
+    TypeError
+        Se method="predict_proba" e estimator não tiver predict_proba.
+    """
+
+    is_predict = isinstance(method, str) and method == "predict"
+    is_predict_proba = isinstance(method, str) and method == "predict_proba"
+
+    if not (is_predict or is_predict_proba):
+        raise ValueError("method deve ser 'predict' ou 'predict_proba'.")
+
+    if is_predict_proba and not hasattr(estimator, "predict_proba"):
+        raise TypeError("method='predict_proba' exige um estimador com predict_proba.")
+
+    X_arr, y_arr = check_X_y(X, y)
+
+    splitter = KFold(n_splits=cv) if isinstance(cv, int) else cv
+
+    predictions = None
+    if is_predict_proba:
+        classes = np.unique(y_arr)
+        predictions = np.zeros((len(y_arr), len(classes)))
+    counts = np.zeros(len(y_arr), dtype=int)
+
+    for train_idx, test_idx in splitter.split(X_arr, y_arr):
+        model = clone(estimator).fit(X_arr[train_idx], y_arr[train_idx])
+        if is_predict:
+            fold_pred = model.predict(X_arr[test_idx])
+            if predictions is None:
+                predictions = np.empty(len(y_arr), dtype=fold_pred.dtype)
+            predictions[test_idx] = fold_pred
+        else:
+            proba = model.predict_proba(X_arr[test_idx])
+            columns = np.searchsorted(classes, model.classes_)
+            predictions[np.ix_(test_idx, columns)] = proba
+        counts[test_idx] += 1
+
+    if np.any(counts != 1):
+        raise ValueError("Cada amostra deve estar no teste exatamente uma vez.")
+
+    return predictions

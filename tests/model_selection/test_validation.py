@@ -4,8 +4,8 @@ import pytest
 from statstech.base import BaseEstimator, ClassifierMixin, RegressorMixin
 from statstech.metrics.classification import log_loss
 from statstech.metrics.regression import mean_squared_error
-from statstech.model_selection.split import KFold, LeaveOneOut
-from statstech.model_selection.validation import cross_val_score
+from statstech.model_selection.split import KFold, LeaveOneOut, StratifiedKFold
+from statstech.model_selection.validation import cross_val_predict, cross_val_score
 from statstech.utils.validation import NotFittedError, check_is_fitted
 
 
@@ -46,6 +46,31 @@ class ZeroClassifier(ClassifierMixin, BaseEstimator):
         proba = np.full((len(X), 2), 0.2)
         proba[:, 0] = 0.8
         return proba
+
+
+class FrequencyClassifier(ClassifierMixin, BaseEstimator):
+    """Modelo de teste: a probabilidade de cada classe é a frequência
+    dela no treino, igual para todas as amostras."""
+
+    def fit(self, X, y):
+        self.classes_, counts = np.unique(y, return_counts=True)
+        self.freq_ = counts / counts.sum()
+        return self
+
+    def predict(self, X):
+        return np.full(len(X), self.classes_[np.argmax(self.freq_)])
+
+    def predict_proba(self, X):
+        return np.tile(self.freq_, (len(X), 1))
+
+
+class RepeatedFoldSplitter:
+    """Divisor de teste que não é partição: devolve o mesmo fold duas vezes."""
+
+    def split(self, X, y=None):
+        idx = np.arange(len(X))
+        for _ in range(2):
+            yield idx[10:], idx[:10]
 
 
 def constant_scoring(y_true, y_pred):
@@ -199,3 +224,104 @@ def test_needs_proba_scoring_no_predict_proba_raises():
     X, y = make_data()
     with pytest.raises(TypeError, match="predict_proba"):
         cross_val_score(MeanRegressor(), X, y, scoring="log_loss")
+
+
+# cross_val_score: StratifiedKFold
+# --------------------------------
+def test_cv_accepts_stratified_kfold():
+    X, y = make_class_data()
+    scores = cross_val_score(ZeroClassifier(), X, y, cv=StratifiedKFold(n_splits=5))
+    assert scores.shape == (5,)
+
+
+# cross_val_predict: predict
+# --------------------------
+def test_cvp_one_prediction_per_sample():
+    X, y = make_data()
+    pred = cross_val_predict(MeanRegressor(), X, y, cv=KFold(n_splits=4))
+
+    assert pred.shape == (len(y),)
+    for train_idx, test_idx in KFold(n_splits=4).split(X):
+        np.testing.assert_allclose(pred[test_idx], y[train_idx].mean())
+
+
+def test_cvp_loo_matches_manual():
+    X, y = make_data(n=10)
+    pred = cross_val_predict(MeanRegressor(), X, y, cv=LeaveOneOut())
+    expected = (y.sum() - y) / (len(y) - 1)
+    np.testing.assert_allclose(pred, expected)
+
+
+def test_cvp_int_cv_uses_kfold():
+    X, y = make_data()
+    np.testing.assert_allclose(
+        cross_val_predict(MeanRegressor(), X, y, cv=4),
+        cross_val_predict(MeanRegressor(), X, y, cv=KFold(n_splits=4)),
+    )
+
+
+def test_cvp_keeps_float_predictions_with_int_y():
+    X = np.arange(10).reshape(-1, 1)
+    y = np.arange(10)
+    pred = cross_val_predict(MeanRegressor(), X, y, cv=KFold(n_splits=5))
+
+    assert np.issubdtype(pred.dtype, np.floating)
+    assert pred[0] == pytest.approx(5.5)
+
+
+def test_cvp_string_labels():
+    X, y = make_class_data()
+    labels = np.array(["a", "b"])[y]
+    pred = cross_val_predict(ZeroClassifier(), X, labels, cv=4)
+    assert pred.tolist() == ["a"] * len(y)
+
+
+def test_cvp_original_estimator_not_fitted():
+    X, y = make_data()
+    model = MeanRegressor()
+    cross_val_predict(model, X, y, cv=4)
+    with pytest.raises(NotFittedError):
+        check_is_fitted(model)
+
+
+# cross_val_predict: predict_proba
+# --------------------------------
+def test_cvp_predict_proba_shape_and_sum():
+    X, y = make_class_data()
+    proba = cross_val_predict(FrequencyClassifier(), X, y, cv=4, method="predict_proba")
+    assert proba.shape == (len(y), 2)
+    np.testing.assert_allclose(proba.sum(axis=1), 1.0)
+
+
+def test_cvp_predict_proba_class_missing_from_fold():
+    X = np.arange(7).reshape(-1, 1)
+    y = np.array([0, 0, 0, 1, 1, 1, 2])
+    proba = cross_val_predict(
+        FrequencyClassifier(), X, y, cv=LeaveOneOut(), method="predict_proba"
+    )
+
+    assert proba.shape == (7, 3)
+    # Sem a única amostra da classe 2, o modelo só conhece 0 e 1.
+    np.testing.assert_allclose(proba[6], [0.5, 0.5, 0.0])
+    # Sem uma amostra da classe 0, o treino tem 2, 3 e 1 de cada classe.
+    np.testing.assert_allclose(proba[0], [2 / 6, 3 / 6, 1 / 6])
+
+
+# cross_val_predict: entradas inválidas
+# -------------------------------------
+def test_cvp_invalid_method_raises():
+    X, y = make_data()
+    with pytest.raises(ValueError, match="method"):
+        cross_val_predict(MeanRegressor(), X, y, method="abc")
+
+
+def test_cvp_predict_proba_without_method_raises():
+    X, y = make_data()
+    with pytest.raises(TypeError, match="predict_proba"):
+        cross_val_predict(MeanRegressor(), X, y, method="predict_proba")
+
+
+def test_cvp_non_partition_cv_raises():
+    X, y = make_data()
+    with pytest.raises(ValueError, match="exatamente uma vez"):
+        cross_val_predict(MeanRegressor(), X, y, cv=RepeatedFoldSplitter())

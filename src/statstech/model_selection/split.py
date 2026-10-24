@@ -169,23 +169,14 @@ class KFold:
         Se False, os dados serão divididos na ordem original.
 
     random_state : int, Generator ou None, default=None
-        Seed para o gerador de números aleatórios.
-
-    Attributes
-    ----------
-    n_splits : int
-        Quantidade de partições configurada.
-
-    shuffle : bool
-        Indica se os dados são embaralhados antes da divisão.
-
-    random_state : int, Generator ou None
-        Objeto ou seed responsável pela aleatoriedade.
+        Semente do gerador aleatório. Use um inteiro para obter os
+        mesmos folds a cada chamada de split; com um Generator, cada
+        chamada consome o gerador e devolve folds diferentes.
 
     Raises
     ------
     ValueError
-        Se n_splits for menor que 2.
+        Se n_splits for menor que 2 ou se não for inteiro.
     """
 
     def __init__(
@@ -194,6 +185,8 @@ class KFold:
         shuffle: bool = False,
         random_state: int | np.random.Generator | None = None,
     ) -> None:
+        if isinstance(n_splits, bool) or not isinstance(n_splits, (int, np.integer)):
+            raise ValueError("n_splits deve ser um número inteiro.")
         if n_splits < 2:
             raise ValueError("n_splits deve ser pelo menos 2.")
         self.n_splits = n_splits
@@ -201,7 +194,7 @@ class KFold:
         self.random_state = random_state
 
     def split(
-        self, X: ArrayLike
+        self, X: ArrayLike, y: ArrayLike | None = None
     ) -> Iterator[tuple[NDArray[np.intp], NDArray[np.intp]]]:
         """Gera os índices de treino e teste de cada partição.
 
@@ -213,6 +206,10 @@ class KFold:
         ----------
         X : array-like
             Dados de entrada (features). Apenas os índices são utilizados.
+
+        y : array-like de formato (n_amostras,), default=None
+            Ignorado. Existe para manter a mesma interface do
+            StratifiedKFold.
 
         Yields
         ------
@@ -241,15 +238,16 @@ class KFold:
             yield train_idx, test_idx
 
 
-class LeaveOneOut(KFold):
+class LeaveOneOut:
     """Validação cruzada deixando uma amostra de fora (k = n).
 
     Em cada rodada, uma única amostra é usada como teste e as
     n - 1 restantes são usadas como treino, gerando n partições.
+    Não tem parâmetros: o número de partições é o número de amostras.
     """
 
     def split(
-        self, X: ArrayLike
+        self, X: ArrayLike, y: ArrayLike | None = None
     ) -> Iterator[tuple[NDArray[np.intp], NDArray[np.intp]]]:
         """Gera os índices de treino e teste de cada partição.
 
@@ -257,6 +255,10 @@ class LeaveOneOut(KFold):
         ----------
         X : array-like
             Dados de entrada. Apenas o número de amostras é utilizado.
+
+        y : array-like de formato (n_amostras,), default=None
+            Ignorado. Existe para manter a mesma interface do
+            StratifiedKFold.
 
         Yields
         ------
@@ -278,3 +280,92 @@ class LeaveOneOut(KFold):
                 f"LeaveOneOut precisa de pelo menos 2 amostras (recebido {n})."
             )
         yield from KFold(n_splits=n).split(X)
+
+
+class StratifiedKFold(KFold):
+    """K folds que mantêm a proporção de cada classe de y.
+
+    Funciona como o KFold, mas cada classe é dividida igualmente
+    entre os folds. Cada classe precisa ter pelo menos n_splits
+    exemplos.
+
+    Parameters
+    ----------
+    n_splits : int, default=5
+        Quantidade de partições (k). Deve ser pelo menos 2.
+
+    shuffle : bool, default=False
+        Se True, os dados serão embaralhados antes da divisão.
+        Se False, os dados serão divididos na ordem original.
+
+    random_state : int, Generator ou None, default=None
+        Semente do gerador aleatório. Use um inteiro para obter os
+        mesmos folds a cada chamada de split; com um Generator, cada
+        chamada consome o gerador e devolve folds diferentes.
+
+    Raises
+    ------
+    ValueError
+        Se n_splits for menor que 2 ou se não for inteiro.
+    """
+
+    def split(
+        self, X: ArrayLike, y: ArrayLike | None = None
+    ) -> Iterator[tuple[NDArray[np.intp], NDArray[np.intp]]]:
+        """Gera os índices de treino e teste de cada partição.
+
+        Para cada uma das n_splits partições, devolve os índices
+        das amostras de treino e de teste.
+        Cada amostra aparece no conjunto de teste exatamente uma vez.
+
+        Parameters
+        ----------
+        X : array-like
+            Dados de entrada (features). Apenas os índices são utilizados.
+
+        y : array-like de formato (n_amostras,)
+            Classes de cada amostra, usadas para estratificar. Obrigatório.
+
+        Yields
+        ------
+        train_idx : ndarray
+            Índices das amostras de treino da partição.
+
+        test_idx : ndarray
+            Índices das amostras de teste da partição.
+
+        Raises
+        ------
+        ValueError
+            Se y for None.
+            Se X e y não tiverem o mesmo tamanho.
+            Se alguma classe de y tiver menos que n_splits exemplos.
+        """
+        if y is None:
+            raise ValueError("StratifiedKFold precisa de y.")
+        y = np.asarray(y)
+        if len(X) != len(y):
+            raise ValueError(f"X e y devem ter o mesmo tamanho ({len(X)} != {len(y)}).")
+
+        classes, counts = np.unique(y, return_counts=True)
+        for label, count in zip(classes, counts):
+            if count < self.n_splits:
+                raise ValueError(
+                    f"A classe {label!r} tem só {count} exemplo(s); "
+                    f"são necessários pelo menos n_splits={self.n_splits}."
+                )
+
+        rng = np.random.default_rng(self.random_state)
+
+        pieces = []
+        for label in classes:
+            idx = np.flatnonzero(y == label)
+            if self.shuffle:
+                idx = rng.permutation(idx)
+            pieces.append(np.array_split(idx, self.n_splits))
+
+        for i in range(self.n_splits):
+            test_idx = np.concatenate([p[i] for p in pieces])
+            mask = np.ones(len(y), dtype=bool)
+            mask[test_idx] = False
+            yield np.flatnonzero(mask), test_idx

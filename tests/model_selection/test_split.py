@@ -1,7 +1,12 @@
 import numpy as np
 import pytest
 
-from statstech.model_selection.split import KFold, LeaveOneOut, train_test_split
+from statstech.model_selection.split import (
+    KFold,
+    LeaveOneOut,
+    StratifiedKFold,
+    train_test_split,
+)
 
 
 def make_data(n=10):
@@ -230,3 +235,113 @@ def test_loo_samples_less_than_2_raises():
     X = np.arange(1)
     with pytest.raises(ValueError, match="pelo menos 2"):
         list(LeaveOneOut().split(X))
+
+
+# KFold e LeaveOneOut com y
+# -------------------------
+def test_kfold_ignores_y():
+    X, y = make_data()
+    with_y = list(KFold(n_splits=5).split(X, y))
+    without_y = list(KFold(n_splits=5).split(X))
+    for (tr_a, te_a), (tr_b, te_b) in zip(with_y, without_y):
+        np.testing.assert_array_equal(tr_a, tr_b)
+        np.testing.assert_array_equal(te_a, te_b)
+
+
+def test_loo_ignores_y():
+    X, y = make_data()
+    with_y = list(LeaveOneOut().split(X, y))
+    without_y = list(LeaveOneOut().split(X))
+    for (tr_a, te_a), (tr_b, te_b) in zip(with_y, without_y):
+        np.testing.assert_array_equal(tr_a, tr_b)
+        np.testing.assert_array_equal(te_a, te_b)
+
+
+# StratifiedKFold
+# ---------------
+def make_imbalanced_data():
+    """50 amostras: 40 da classe 0 e 10 da classe 1."""
+    X = np.arange(50).reshape(-1, 1)
+    y = np.array([0] * 40 + [1] * 10)
+    return X, y
+
+
+def test_skf_number_of_folds():
+    X, y = make_imbalanced_data()
+    assert len(list(StratifiedKFold(n_splits=5).split(X, y))) == 5
+
+
+def test_skf_each_sample_tested_once():
+    X, y = make_imbalanced_data()
+    test_idx = np.concatenate([te for _, te in StratifiedKFold(5).split(X, y)])
+    np.testing.assert_array_equal(np.sort(test_idx), np.arange(len(y)))
+
+
+def test_skf_train_test_complementary():
+    X, y = make_imbalanced_data()
+    for train_idx, test_idx in StratifiedKFold(n_splits=5).split(X, y):
+        assert set(train_idx).isdisjoint(test_idx)
+        assert set(train_idx) | set(test_idx) == set(range(len(y)))
+
+
+def test_skf_keeps_class_proportions():
+    X, y = make_imbalanced_data()
+    for _, test_idx in StratifiedKFold(n_splits=5).split(X, y):
+        assert np.sum(y[test_idx] == 0) == 8
+        assert np.sum(y[test_idx] == 1) == 2
+
+
+def test_skf_string_labels():
+    X, _ = make_imbalanced_data()
+    y = np.array(["a"] * 40 + ["b"] * 10)
+    for _, test_idx in StratifiedKFold(n_splits=5).split(X, y):
+        assert np.sum(y[test_idx] == "b") == 2
+
+
+def test_skf_accepts_list_y():
+    X, y = make_imbalanced_data()
+    from_list = list(StratifiedKFold(n_splits=5).split(X, y.tolist()))
+    from_array = list(StratifiedKFold(n_splits=5).split(X, y))
+    for (tr_a, te_a), (tr_b, te_b) in zip(from_list, from_array):
+        np.testing.assert_array_equal(tr_a, tr_b)
+        np.testing.assert_array_equal(te_a, te_b)
+
+
+def test_skf_same_seed_same_folds():
+    X, y = make_imbalanced_data()
+    folds_1 = list(StratifiedKFold(shuffle=True, random_state=0).split(X, y))
+    folds_2 = list(StratifiedKFold(shuffle=True, random_state=0).split(X, y))
+    for (_, te_1), (_, te_2) in zip(folds_1, folds_2):
+        np.testing.assert_array_equal(te_1, te_2)
+
+
+def test_skf_shuffle_changes_folds():
+    X, y = make_imbalanced_data()
+    folds_1 = list(StratifiedKFold(shuffle=True, random_state=0).split(X, y))
+    folds_2 = list(StratifiedKFold().split(X, y))
+    assert any(
+        not np.array_equal(te_1, te_2) for (_, te_1), (_, te_2) in zip(folds_1, folds_2)
+    )
+
+
+def test_skf_without_y_raises():
+    X, _ = make_imbalanced_data()
+    with pytest.raises(ValueError, match="precisa de y"):
+        list(StratifiedKFold().split(X))
+
+
+def test_skf_X_y_diff_lengths_raises():
+    X, y = make_imbalanced_data()
+    with pytest.raises(ValueError, match="mesmo tamanho"):
+        list(StratifiedKFold().split(X, y[:-1]))
+
+
+def test_skf_class_smaller_than_n_splits_raises():
+    X, y = make_imbalanced_data()
+    with pytest.raises(ValueError, match="classe"):
+        list(StratifiedKFold(n_splits=11).split(X, y))
+
+
+def test_skf_n_splits_less_than_2_raises():
+    with pytest.raises(ValueError, match="pelo menos 2"):
+        StratifiedKFold(n_splits=1)
